@@ -19,7 +19,19 @@ public class Controller extends KeyAdapter {
 
     @Override
     public void keyPressed(KeyEvent e) {
-        //super.keyPressed(e);
+
+
+        //16:
+        // вызывать метод autoMove у модели в случае, если была нажата клавиша с кодом KeyEvent.VK_A.
+        if(e.getKeyCode() == KeyEvent.VK_A){
+            model.autoMove();
+        }
+
+        //13: при нажатии клавиши r делается произвольнй рандомный ход:
+        if(e.getKeyCode() == KeyEvent.VK_R){
+            model.randomMove();
+        }
+
         //1. Если была нажата клавиша ESC - вызови метод resetGame.
         if(e.getKeyCode() == 0x1B){
             resetGame();
@@ -53,6 +65,11 @@ public class Controller extends KeyAdapter {
         //4. Если поле maxTile у модели стало равно WINNING_TILE, установи флаг isGameWon в true.
         if(model.maxTile == WINNING_TILE){
             view.isGameWon = true;
+        }
+
+        //12: Также добавим в метод keyPressed класса Controller вызов метода rollback по нажатию на клавишу Z (код - KeyEvent.VK_Z).
+        if(e.getKeyCode() == KeyEvent.VK_Z){
+            model.rollback();
         }
         //5. В самом конце, вызови метод repaint у view.
         view.repaint();
