@@ -1,8 +1,6 @@
 package com.javarush.task.task35.task3513;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 //класс ответственен за все манипуляции производимые с игровым полем.
 public class Model {
@@ -10,11 +8,127 @@ public class Model {
     private Tile[][] gameTiles;
     //поля score и maxTile типа int, которые должны хранить текущий счет и максимальный вес плитки на игровом поле.
     int score;
-    int maxTile;
+    int maxTile; //---> плитка с максимальным значением.
+    //предыдущие состояния игрового поля для отмены хода:
+    private Stack<Tile[][]> previousStates = new Stack<>();
+    //предыдущие счета для отмены хода:
+    private Stack<Integer> previousScores = new Stack<>();
+    private boolean isSaveNeeded = true;
+
 
     public Model(){
         resetGameTiles();
     }
+
+    //метод будет выбирать лучший из возможных ходов и выполнять его.
+    //4. В методе autoMove должен быть выполнен метод move
+    // связанный с объектом MoveEfficiency полученном с помощью метода peek или poll.
+    //(Возьмем верхний элемент и выполним ход связанный с ним.)
+     void autoMove(){
+        //мы создаем PriorityQueue, которая устроена так, что сортирует помещаемые в нее элементы.
+        // Именно она у себя внутри и вызывает compareTo
+        Queue<MoveEfficiency> queue = new PriorityQueue<>(4, Collections.reverseOrder());
+        //В getMoveEfficiency необходимо передать интерфейс Move,
+        // который является функциональным интерфейсом, то есть содержит в себе 1 единственный метод move().
+        // Это можно воспринимать как - "мы должны в getMoveEfficiency передать
+        // реализацию метода без параметров, возвращающего void".
+        // Именно такими методами и являются наши left(), up() и т.д.
+        queue.offer(getMoveEfficiency(() -> left()));
+        queue.offer(getMoveEfficiency(() -> right()));
+        queue.offer(getMoveEfficiency(() -> up()));
+        queue.offer(getMoveEfficiency(() -> down()));
+
+        //наверху очереди оказывается лучший ход из 4-х возможных.
+         // Потому что queue построена так что в параметре ей передан Collections.reverseOrder(). Берем его и выполняем:
+         MoveEfficiency moveEfficiency = queue.peek();
+         moveEfficiency.getMove().move();
+    }
+
+    //метод для реализации самостоятельного "умного " хода:
+    //будет возвращать true, в случае, если вес плиток в массиве gameTiles отличается
+    // от веса плиток в верхнем массиве стека previousStates.
+    // мы не должны удалять из стека верхний элемент, использую метод peek.
+    private boolean hasBoardChanged(){
+        boolean flag = false;
+        Tile[][] tempTiles = previousStates.peek();
+        for(int i = 0; i < gameTiles.length; i++){
+            for(int j = 0; j < gameTiles[i].length; j++){
+                if(tempTiles[i][j].value != gameTiles[i][j].value){
+                    flag = true;
+                }
+            }
+        }
+        return flag;
+    }
+
+    //возвращает объект типа MoveEfficiency описывающий эффективность переданного хода.
+    //а) вызывать метод rollback, чтобы восстановить корректное игровое состояние;
+    //б) в случае, если ход не меняет состояние игрового поля,
+    // количество пустых плиток и счет у объекта MoveEfficiency делаю равными -1 и 0 соответственно;
+    //в) выполнить ход можно вызвав метод move на объекте полученном в качестве параметра.
+    private MoveEfficiency getMoveEfficiency(Move move){
+        //сразу вызывается move.move(), тем самым меняется объект текущего класса Model
+        move.move();
+        //выполнить ход можно вызвав метод move на объекте полученном в качестве параметра.
+        //конструктор: int numberOfEmptyTiles, int score, Move move
+        MoveEfficiency moveEfficiency = new MoveEfficiency(getEmptyTiles().size(), score, move);
+        if(!hasBoardChanged()){
+            return new MoveEfficiency(-1, 0, move);
+        }
+        rollback();
+        return moveEfficiency;
+    }
+
+
+    //метод чтобы игра могла сама выполнить следующий ход случайно:
+    public void randomMove(){
+        int n = ((int) (Math.random() * 100)) % 4;
+        switch (n){
+            case 0:
+                left();
+            case 1:
+                right();
+            case 2:
+                up();
+            case 3:
+                down();
+        }
+    }
+
+
+    //этот метод будет сохранять текущее
+    //игровое состояние и счет в стеки с помощью метода push и устанавливать флаг isSaveNeeded равным false.
+    private void saveState(Tile[][] tiles){
+        Tile[][] savedTiles = new Tile[FIELD_WIDTH][FIELD_WIDTH];
+        //в цикле заполнить новый массив новыми плитками с теми же весами:
+        for(int i = 0; i < tiles.length; i++){
+            for(int j = 0; j < tiles[i].length; j++){
+                savedTiles[i][j] = new Tile(tiles[i][j].value);
+            }
+        }
+
+        previousStates.push(savedTiles);
+        previousScores.push(score);
+        isSaveNeeded = false;
+        //Обрати внимание на то, что при сохранении массива gameTiles
+        // необходимо создать новый массив и заполнить его новыми объектами типа Tile перед сохранением в стек.
+        //3. После вызова метода saveState веса плиток в массиве который находится на вершине стека
+        // должны совпадать с весами плиток массива полученного в качестве параметра.
+    }
+
+    //метод будет устанавливать текущее игровое состояние равным последнему находящемуся в стеках с помощью метода pop.
+    public void rollback(){
+        if(!previousStates.isEmpty() & !previousScores.isEmpty()) {
+            gameTiles = previousStates.pop();
+            score = previousScores.pop();
+        }
+    }
+
+
+
+    //Приватный метод saveState с одним параметром типа Tile[][] будет сохранять текущее
+    //игровое состояние и счет в стеки с помощью метода push и устанавливать флаг isSaveNeeded равным false.
+
 
     public Tile[][] getGameTiles() {
         return gameTiles;
@@ -170,6 +284,9 @@ public class Model {
     //4. Метод left не должен быть приватным, т.к. вызваться он будет, помимо прочего,
     // из класса Controller.
     void left(){
+        if(isSaveNeeded){
+            saveState(gameTiles);
+        }
         for(int i = 0; i < gameTiles.length; i++){
             boolean compressed = compressTiles(gameTiles[i]);
             boolean merged = mergeTiles(gameTiles[i]);
@@ -177,6 +294,8 @@ public class Model {
                 addTile();
             }
         }
+
+        isSaveNeeded = true;
     }
 
     //7: теперь необходимо реализовать методы right, up, down.
@@ -184,6 +303,7 @@ public class Model {
     //
     // а потом еще трижды выполнить поворот?
     void up(){
+        saveState(gameTiles);
         rotateClockwise();
         rotateClockwise();
         rotateClockwise();
@@ -192,6 +312,7 @@ public class Model {
     }
 
     void down(){
+        saveState(gameTiles);
         rotateClockwise();
         left();
         rotateClockwise();
@@ -200,6 +321,7 @@ public class Model {
     }
 
     void right(){
+        saveState(gameTiles);
         rotateClockwise();
         rotateClockwise();
         left();
